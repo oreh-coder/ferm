@@ -1,0 +1,142 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>F.E.R.M Dashboard</title>
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+
+    <style>
+        body { font-family: Arial, sans-serif; background: #f5f5f5; margin: 0; padding: 20px; }
+        h2 { text-align: center; margin-bottom: 5px; }
+
+        .status-bar { text-align: center; font-size: 20px; font-weight: bold; padding: 10px; border-radius: 8px; margin-bottom: 15px; }
+        .safe   { background: #d4edda; color: #155724; }
+        .warn   { background: #fff3cd; color: #856404; }
+        .danger { background: #f8d7da; color: #721c24; }
+
+        .grid { display: grid; grid-template-columns: 1fr 1fr; gap: 15px; }
+
+        .card { background: white; padding: 10px; border-radius: 6px; box-shadow: 0 0 5px #ccc; }
+
+        canvas { background: #ffffff; }
+
+        .info-box { height: 260px; overflow-y: auto; border: 1px solid #ccc; padding: 10px; text-align: left; font-size: 14px; background: #fffdf5; }
+        .info-box div { padding: 6px; margin-bottom: 6px; border-radius: 6px; background: #f7f7f7; }
+
+        .normal { color: green; font-weight: bold; }
+        .warn2  { color: darkorange; font-weight: bold; background: #fff3cd !important; }
+        .alert  { color: red; font-weight: bold; background: #f8d7da !important; }
+    </style>
+</head>
+
+<body>
+
+<h2>F.E.R.M Dashboard</h2>
+<div id="fireStatus" class="status-bar safe">🟢 NO FIRE DETECTED!!!</div>
+
+<div class="grid">
+    <div class="card">
+        <h3>🌡 Temperature (°C)</h3>
+        <canvas id="tempChart"></canvas>
+    </div>
+
+    <div class="card">
+        <h3>💧 Humidity (%)</h3>
+        <canvas id="humChart"></canvas>
+    </div>
+
+    <div class="card">
+        <h3>🔥 Gas Level (ADC Value)</h3>
+        <canvas id="gasChart"></canvas>
+    </div>
+
+    <div class="card">
+        <h3>📢 Information</h3>
+        <div class="info-box" id="infoBox"></div>
+    </div>
+</div>
+
+<script>
+let charts = {};
+
+function makeChart(id, label, data, color) {
+    if (!data || data.length === 0) return;
+    if (charts[id]) charts[id].destroy();
+
+    charts[id] = new Chart(document.getElementById(id), {
+        type: 'line',
+        data: {
+            labels: data.map((_, i) => i + 1),
+            datasets: [{
+                label: label,
+                data: data,
+                borderColor: color,
+                backgroundColor: color,
+                fill: false,
+                tension: 0.3,
+                borderWidth: 1.5,
+                pointRadius: 2,
+                pointHoverRadius: 4,
+                pointBorderWidth: 2
+            }]
+        },
+        options: {
+            responsive: true,
+            scales: {
+                x: { title: { display: true, text: "Samples" } },
+                y: { beginAtZero: false }
+            }
+        }
+    });
+}
+
+function updateStatus(level) {
+    const bar = document.getElementById("fireStatus");
+    if (level === 2) {
+        bar.className = "status-bar danger";
+        bar.innerHTML = "🔴 FIRE DETECTED. EMERGENCY!!!";
+    } else if (level === 1) {
+        bar.className = "status-bar warn";
+        bar.innerHTML = "🟠 WARNING !!!";
+    } else {
+        bar.className = "status-bar safe";
+        bar.innerHTML = "🟢 NO FIRE DETECTED!!!";
+    }
+}
+
+function updateData() {
+    fetch("/data")
+        .then(res => res.json())
+        .then(data => {
+
+            makeChart("tempChart", "Temperature (°C)", data.temps, "red");
+            makeChart("humChart", "Humidity (%)", data.hums, "blue");
+            makeChart("gasChart", "Gas Level", data.gas, "green");
+
+            const box = document.getElementById("infoBox");
+            box.innerHTML = "";
+
+            // Hiển thị log (mới nhất ở trên)
+            data.logs.slice().reverse().forEach(log => {
+                let div = document.createElement("div");
+
+                if (log.level === 1) div.className = "warn2";
+                else if (log.level === 2) div.className = "alert";
+                else div.className = "normal";
+
+                div.innerHTML = log.text;
+                box.appendChild(div);
+            });
+
+            // ⭐ DÙNG TRẠNG THÁI HIỆN TẠI TỪ BACKEND
+            updateStatus(data.current_level || 0);
+
+            box.scrollTop = 0;
+        });
+}
+
+setInterval(updateData, 5000);
+updateData();
+</script>
+
+</body>
+</html>
